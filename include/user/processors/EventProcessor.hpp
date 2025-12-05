@@ -1,0 +1,32 @@
+#pragma once
+#include "common.hpp"
+#include <vector>
+#include <string>
+#include <memory>
+
+#define TMT_DEBUG_INTERVALS 0 
+
+struct Node;
+
+struct TimeInterval {
+    uint64_t time;
+    int alive;
+};
+
+class EventProcessor {
+public:
+    explicit EventProcessor(const std::vector<Event>& evs, uint32_t root_pid = 0);
+    ~EventProcessor();
+
+    void build_tree(bool print_tree = false);
+    void compute_intervals(bool print_intervals = false);
+    void store_to_csv(const std::string& filename = "out/alive_series.csv") const;
+
+private:
+    void print_tree_rec(const Node& n, int depth) const;
+
+    std::vector<Event> events_;
+    std::unique_ptr<Node> root_;
+    std::vector<TimeInterval> time_intervals_;
+    uint32_t root_pid_hint_ = 0;
+};
