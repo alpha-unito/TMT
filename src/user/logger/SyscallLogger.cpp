@@ -7,10 +7,11 @@
 #include <sys/stat.h>
 #include <fstream>
 #include <sstream>
+#include <semaphore>
+#include <sys/mman.h>
 
-SyscallLogger::SyscallLogger(int timeout_ms)
-: timeout_ms_(timeout_ms)
-{
+SyscallLogger::SyscallLogger(const int timeout_ms)
+    : timeout_ms_(timeout_ms) {
     handlers_.emplace_back(std::make_unique<ExecveHandler>(timeout_ms_));
     handlers_.emplace_back(std::make_unique<ForkHandler>(timeout_ms_));
     handlers_.emplace_back(std::make_unique<ExitHandler>(timeout_ms_));
@@ -20,9 +21,9 @@ SyscallLogger::SyscallLogger(int timeout_ms)
     handlers_.emplace_back(std::make_unique<Clone3Handler>(timeout_ms_));
 }
 
-bool SyscallLogger::install_all() {
+bool SyscallLogger::install_all() const {
     bool ok = false;
-    for (auto& h : handlers_) {
+    for (auto &h: handlers_) {
         if (h->install()) ok = true;
         else std::cerr << "Install failed for handler: " << h->name() << "\n";
     }
@@ -30,32 +31,35 @@ bool SyscallLogger::install_all() {
 }
 
 void SyscallLogger::coordinated_stop() {
-    for (auto& h : handlers_) h->freeze_producer();
+    for (const auto &h: handlers_) h->freeze_producer();
 
     std::vector<uint64_t> totals;
     totals.reserve(handlers_.size());
-    for (auto& h : handlers_) totals.push_back(h->snapshot_total());
+    for (const auto &h: handlers_) totals.push_back(h->snapshot_total());
 
     for (size_t i = 0; i < handlers_.size(); ++i)
         handlers_[i]->drain_until(totals[i]);
 
-    for (auto& h : handlers_) { h->detach(); h->stop(); }
+    for (const auto &h: handlers_) {
+        h->detach();
+        h->stop();
+    }
 
     events_.clear();
-    for (auto& h : handlers_) {
+    for (const auto &h: handlers_) {
         auto v = h->collect();
         events_.insert(events_.end(), v.begin(), v.end());
     }
     std::sort(events_.begin(), events_.end(),
-              [](const Event& a, const Event& b) { return a.timestamp < b.timestamp; });
+              [](const Event &a, const Event &b) { return a.timestamp < b.timestamp; });
 
     if (!events_.empty()) {
         uint64_t t0 = events_.front().timestamp;
-        for (auto& e : events_) e.timestamp -= t0;
+        for (auto &e: events_) e.timestamp -= t0;
     }
 }
 
-static std::vector<std::string> split_args(const std::string& cmd) {
+static std::vector<std::string> split_args(const std::string &cmd) {
     std::istringstream iss(cmd);
     std::vector<std::string> out;
     std::string tok;
@@ -63,25 +67,37 @@ static std::vector<std::string> split_args(const std::string& cmd) {
     return out;
 }
 
-void SyscallLogger::run_command(const std::string& cmd, bool print_raw) {
-    pid_t cmd_pid = fork();
+void SyscallLogger::run_command(const std::string &cmd, bool print_raw) {
+    auto *signalToChild = static_cast<sem_t *>(mmap(nullptr, sizeof(sem_t), PROT_READ | PROT_WRITE,
+                                                    MAP_SHARED | MAP_ANONYMOUS, -1, 0));
+
+    sem_init(signalToChild, 1, 0);
+
+    const pid_t cmd_pid = fork();
+
+
     if (cmd_pid < 0) {
         std::cerr << "fork() failed: " << strerror(errno) << "\n";
         return;
     }
 
     if (cmd_pid == 0) {
-        auto args = split_args(cmd);
+        const auto args = split_args(cmd);
         if (args.empty()) {
             std::cerr << "Empty command\n";
             _exit(127);
         }
 
-        std::vector<char*> argv;
+        std::vector<char *> argv;
         argv.reserve(args.size() + 1);
-        for (auto& s : args)
-            argv.push_back(const_cast<char*>(s.c_str()));
+        for (auto &s: args)
+            argv.push_back(const_cast<char *>(s.c_str()));
         argv.push_back(nullptr);
+
+        // do a synchronized wait for master thread for explicit permission to start
+        std::cout << "Waiting for signal from tmt_logger to start executing child" << std::endl;
+        sem_wait(signalToChild);
+        std::cout << "Starting command on pid:  " << cmd_pid << std::endl;
 
         if (execvp(argv[0], argv.data()) < 0) {
             std::cerr << "execvp failed: " << strerror(errno) << "\n";
@@ -89,12 +105,12 @@ void SyscallLogger::run_command(const std::string& cmd, bool print_raw) {
         }
     }
 
-    // passa the cmd_pid to the Event Processor
+    // pass the cmd_pid to the Event Processor
     root_pid_ = static_cast<uint32_t>(cmd_pid);
 
     // pass the cmd_pid to the SwitchHandler
-    for (auto& h : handlers_) {
-        if (auto* sh = dynamic_cast<SwitchHandler*>(h.get())) {
+    for (auto &h: handlers_) {
+        if (auto *sh = dynamic_cast<SwitchHandler *>(h.get())) {
             sh->set_root_pids(/*shell_pid=*/0, static_cast<uint32_t>(cmd_pid));
         }
     }
@@ -104,6 +120,11 @@ void SyscallLogger::run_command(const std::string& cmd, bool print_raw) {
         return;
     }
 
+    // unlock child thread to execute execve. Do this to avoid startup issues
+    sem_post(signalToChild);
+    sem_destroy(signalToChild);
+    std::cout << "Unlocked child thread execution" << std::endl;
+
     // wait the cmd end
     if (waitpid(cmd_pid, nullptr, 0) < 0) {
         std::cerr << "waitpid failed: " << strerror(errno) << "\n";
@@ -112,11 +133,11 @@ void SyscallLogger::run_command(const std::string& cmd, bool print_raw) {
     coordinated_stop();
 
     if (print_raw) {
-        for (auto& e : events_) {
+        for (auto &e: events_) {
             std::cout << e.timestamp << " " << e.event
-                      << " pid=" << e.pid
-                      << " child=" << e.child_pid
-                      << " comm=" << e.command << "\n";
+                    << " pid=" << e.pid
+                    << " child=" << e.child_pid
+                    << " comm=" << e.command << "\n";
         }
     }
 }

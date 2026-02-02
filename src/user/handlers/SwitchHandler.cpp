@@ -19,24 +19,15 @@ struct run_event_t {
     uint32_t pid;
     uint32_t type;
     uint32_t reason;
-    char     comm[16];
+    char comm[16];
     uint32_t parent_pid, child_pid, pgid, tid, tgid;
-    char     command[16];
+    char command[16];
     uint64_t timestamp;
 };
 #pragma pack(pop)
 
 static int sample_cb(void *ctx, void *data, size_t len) {
-    return reinterpret_cast<SwitchHandler*>(ctx)->on_sample(data, len);
-}
-
-static uint32_t read_pid_file(const char* path) {
-    FILE* f = fopen(path, "re");
-    if (!f) return 0;
-    unsigned long x = 0;
-    if (fscanf(f, "%lu", &x) != 1) { fclose(f); return 0; }
-    fclose(f);
-    return (uint32_t)x;
+    return static_cast<SwitchHandler *>(ctx)->on_sample(data, len);
 }
 
 static void add_tid_if_any(int map_allow_fd, uint32_t tid) {
@@ -45,27 +36,27 @@ static void add_tid_if_any(int map_allow_fd, uint32_t tid) {
     bpf_map_update_elem(map_allow_fd, &tid, &one, BPF_ANY);
 }
 
-static void add_all_threads_of_pid(int map_allow_fd, uint32_t pid) {
+static void add_all_threads_of_pid(const int map_allow_fd, const uint32_t pid) {
     if (!pid) return;
     char path[64];
     snprintf(path, sizeof(path), "/proc/%u/task", pid);
-    DIR* d = opendir(path);
+    DIR *d = opendir(path);
     if (!d) {
         add_tid_if_any(map_allow_fd, pid);
         return;
     }
-    struct dirent* de;
+    dirent *de;
     while ((de = readdir(d)) != nullptr) {
         if (de->d_name[0] == '.') continue;
-        unsigned long tid = strtoul(de->d_name, nullptr, 10);
-        if (tid > 0 && tid <= 0xfffffffful)
-            add_tid_if_any(map_allow_fd, (uint32_t)tid);
+        if (const unsigned long tid = strtoul(de->d_name, nullptr, 10); tid > 0 && tid <= 0xfffffffful)
+            add_tid_if_any(map_allow_fd, static_cast<uint32_t>(tid));
     }
     closedir(d);
 }
 
-SwitchHandler::SwitchHandler(int poll_timeout_ms)
-: BaseHandler("switch", poll_timeout_ms) {}
+SwitchHandler::SwitchHandler(const int poll_timeout_ms)
+    : BaseHandler("switch", poll_timeout_ms) {
+}
 
 SwitchHandler::~SwitchHandler() {
     stop();
@@ -75,10 +66,10 @@ SwitchHandler::~SwitchHandler() {
 
 std::string SwitchHandler::resolve_bpf_obj_path() const {
     char exe_path[PATH_MAX]{};
-    ssize_t n = readlink("/proc/self/exe", exe_path, sizeof(exe_path)-1);
+    ssize_t n = readlink("/proc/self/exe", exe_path, sizeof(exe_path) - 1);
     if (n <= 0) return "./bin/sched_switch.bpf.o";
     exe_path[n] = '\0';
-    char* slash = strrchr(exe_path, '/');
+    char *slash = strrchr(exe_path, '/');
     if (!slash) return "./bin/sched_switch.bpf.o";
     *slash = '\0';
     return std::string(exe_path) + "/sched_switch.bpf.o";
@@ -104,11 +95,11 @@ bool SwitchHandler::install() {
     }
 
     map_cfg_ = bpf_object__find_map_fd_by_name(obj_, "cfg_enabled");
-    map_ev_  = bpf_object__find_map_fd_by_name(obj_, "ev_count");
-    map_rb_  = bpf_object__find_map_fd_by_name(obj_, "sched_output");
-    
+    map_ev_ = bpf_object__find_map_fd_by_name(obj_, "ev_count");
+    map_rb_ = bpf_object__find_map_fd_by_name(obj_, "sched_output");
+
     int map_allow_ = bpf_object__find_map_fd_by_name(obj_, "allow_pids");
-    int map_usef_  = bpf_object__find_map_fd_by_name(obj_, "cfg_useFilter");
+    int map_usef_ = bpf_object__find_map_fd_by_name(obj_, "cfg_useFilter");
     if (map_cfg_ < 0 || map_ev_ < 0 || map_rb_ < 0 || map_allow_ < 0 || map_usef_ < 0) {
         fprintf(stderr, "[switch] missing maps\n");
         return false;
@@ -121,7 +112,7 @@ bool SwitchHandler::install() {
     }
 
     uint32_t shell_pid = shell_pid_hint_;
-    uint32_t cmd_pid   = cmd_pid_hint_;
+    uint32_t cmd_pid = cmd_pid_hint_;
 
     if (!shell_pid && !cmd_pid) {
         uint32_t k = 0, off = 0;
@@ -177,12 +168,12 @@ uint64_t SwitchHandler::snapshot_total() {
 int SwitchHandler::on_sample(void *data, size_t len) {
     if (len < sizeof(run_event_t)) return 0;
     read_events_.fetch_add(1, std::memory_order_relaxed);
-    const run_event_t* ev = reinterpret_cast<const run_event_t*>(data);
+    const auto *ev = static_cast<const run_event_t *>(data);
 
     Event e;
     e.event = (ev->type == 1) ? "run" : "desched";
-    e.pid   = ev->pid;
-    e.cpu   = ev->cpu;
+    e.pid = ev->pid;
+    e.cpu = ev->cpu;
     e.reason = (ev->reason == 1) ? "preempt" : "sleep";
     e.command = std::string(ev->comm);
     e.timestamp = ev->ts;
@@ -195,5 +186,5 @@ int SwitchHandler::on_sample(void *data, size_t len) {
 
 void SwitchHandler::set_root_pids(uint32_t shell_pid, uint32_t cmd_pid) {
     shell_pid_hint_ = shell_pid;
-    cmd_pid_hint_   = cmd_pid;
+    cmd_pid_hint_ = cmd_pid;
 }

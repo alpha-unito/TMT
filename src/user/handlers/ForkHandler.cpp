@@ -17,13 +17,14 @@ struct data_t {
     uint32_t pgid;
     uint32_t tid;
     uint32_t tgid;
-    char     command[16];
+    char command[16];
     uint64_t timestamp;
 };
 #pragma pack(pop)
 
 ForkHandler::ForkHandler(int poll_timeout_ms)
-: BaseHandler("fork", poll_timeout_ms) {}
+    : BaseHandler("fork", poll_timeout_ms) {
+}
 
 ForkHandler::~ForkHandler() {
     stop();
@@ -33,15 +34,15 @@ ForkHandler::~ForkHandler() {
 
 std::string ForkHandler::resolve_bpf_obj_path() const {
     char exe_path[PATH_MAX]{};
-    ssize_t n = readlink("/proc/self/exe", exe_path, sizeof(exe_path)-1);
+    ssize_t n = readlink("/proc/self/exe", exe_path, sizeof(exe_path) - 1);
     if (n <= 0) return "./bin/fork.bpf.o";
     exe_path[n] = '\0';
-    char* dir = dirname(exe_path);
-    return std::string(dir) + "/fork.bpf.o";  
+    char *dir = dirname(exe_path);
+    return std::string(dir) + "/fork.bpf.o";
 }
 
 static int sample_cb(void *ctx, void *data, size_t len) {
-    auto *c = reinterpret_cast<ForkHandler::RbCtx*>(ctx);
+    const auto *c = static_cast<ForkHandler::RbCtx *>(ctx);
     return c->self->on_sample_with_tag(c->tag, data, len);
 }
 
@@ -61,19 +62,19 @@ bool ForkHandler::install() {
     if (err) {
         const char *libbpf_err = strerror(-err);
         fprintf(stderr, "[fork] load failed: %s (err=%d)\n",
-                libbpf_err?libbpf_err:"unknown", err);
+                libbpf_err ? libbpf_err : "unknown", err);
         return false;
     }
 
-    map_cfg_     = bpf_object__find_map_fd_by_name(obj_, "cfg_enabled");
-    map_ev_      = bpf_object__find_map_fd_by_name(obj_, "ev_count");
+    map_cfg_ = bpf_object__find_map_fd_by_name(obj_, "cfg_enabled");
+    map_ev_ = bpf_object__find_map_fd_by_name(obj_, "ev_count");
     map_rb_fork_ = bpf_object__find_map_fd_by_name(obj_, "fork_output");
     if (map_cfg_ < 0 || map_ev_ < 0 || map_rb_fork_ < 0) {
         fprintf(stderr, "[fork] missing maps (cfg_enabled/ev_count/fork_output)\n");
         return false;
     }
 
-    bpf_program *fork_prog = bpf_object__find_program_by_name(obj_, "handle_sched_fork");
+    const bpf_program *fork_prog = bpf_object__find_program_by_name(obj_, "handle_sched_fork");
     if (!fork_prog) {
         fprintf(stderr, "[fork] program trace_fork_exit not found in obj\n");
         return false;
@@ -86,8 +87,8 @@ bool ForkHandler::install() {
 
     set_cfg_enabled_map(map_cfg_);
 
-    rb_fork_ctx_ = { this, "fork" };
-    rb1_ = ring_buffer__new(map_rb_fork_, sample_cb, &rb_fork_ctx_, NULL);
+    rb_fork_ctx_ = {this, "fork"};
+    rb1_ = ring_buffer__new(map_rb_fork_, sample_cb, &rb_fork_ctx_, nullptr);
     if (!rb1_) {
         fprintf(stderr, "[fork] ring_buffer__new failed\n");
         return false;
@@ -99,7 +100,10 @@ bool ForkHandler::install() {
 }
 
 void ForkHandler::detach() {
-    if (link_fork_exit_) { bpf_link__destroy(link_fork_exit_); link_fork_exit_ = nullptr; }
+    if (link_fork_exit_) {
+        bpf_link__destroy(link_fork_exit_);
+        link_fork_exit_ = nullptr;
+    }
 }
 
 void ForkHandler::freeze_producer() {
@@ -114,16 +118,16 @@ int ForkHandler::on_sample(void *data, size_t len) {
     return on_sample_with_tag("fork", data, len);
 }
 
-int ForkHandler::on_sample_with_tag(const char* tag, void *data, size_t len) {
+int ForkHandler::on_sample_with_tag(const char *tag, void *data, size_t len) {
     if (len < sizeof(data_t)) return 0;
     read_events_.fetch_add(1, std::memory_order_relaxed);
-    auto* ev = (const data_t*)data;
+    auto *ev = static_cast<const data_t *>(data);
 
     Event e;
     e.event = tag ? std::string(tag) : std::string("fork");
     e.parent_pid = ev->parent_pid;
-    e.pid = ev->pid;                
-    e.child_pid = ev->child_pid;     
+    e.pid = ev->pid;
+    e.child_pid = ev->child_pid;
     e.pgid = ev->pgid;
     e.tid = ev->tid;
     e.tgid = ev->tgid;

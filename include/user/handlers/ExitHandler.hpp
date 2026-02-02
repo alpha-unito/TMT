@@ -13,7 +13,7 @@ public:
     uint64_t snapshot_total() override;
 
     int on_sample(void *data, size_t len) override;
-    int on_sample_with_tag(const char* tag, void *data, size_t len);
+    int on_sample_with_tag(const char* tag, const void *data, size_t len);
 
     struct RbCtx { ExitHandler* self; const char* tag; };
 

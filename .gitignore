@@ -216,3 +216,4 @@ vmlinux.h
 
 # Old Folder
 old/
+.idea

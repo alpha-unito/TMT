@@ -15,7 +15,7 @@ public:
     int on_sample(void *data, size_t len) override;
 
 protected:
-    int on_sample_with_tag(const char* tag, void *data, size_t len);
+    int on_sample_with_tag(const char* tag, const void *data, size_t len);
 
 private:
     std::string resolve_bpf_obj_path() const;

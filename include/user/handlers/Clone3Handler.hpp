@@ -18,7 +18,7 @@ protected:
     int on_sample_with_tag(const char* tag, void *data, size_t len);
 
 private:
-    std::string resolve_bpf_obj_path() const;
+    static std::string resolve_bpf_obj_path() ;
 
     int map_cfg_{-1};
     int map_ev_{-1};

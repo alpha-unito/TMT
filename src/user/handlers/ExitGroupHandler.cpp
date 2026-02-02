@@ -21,7 +21,7 @@ struct data_t {
 #pragma pack(pop)
 
 static int sample_cb(void *ctx, void *data, size_t len) {
-    ExitGroupHandler* self = reinterpret_cast<ExitGroupHandler*>(ctx);
+    auto* self = static_cast<ExitGroupHandler*>(ctx);
     return self->on_sample(data, len);
 }
 
@@ -112,7 +112,7 @@ uint64_t ExitGroupHandler::snapshot_total() {
 int ExitGroupHandler::on_sample(void *data, size_t len) {
     if (len < sizeof(data_t)) return 0;
     read_events_.fetch_add(1, std::memory_order_relaxed);
-    const data_t* ev = reinterpret_cast<const data_t*>(data);
+    const auto* ev = static_cast<const data_t*>(data);
 
     Event e;
     e.event = "exit_group";

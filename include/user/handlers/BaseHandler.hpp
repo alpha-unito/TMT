@@ -20,7 +20,7 @@ public:
 
     void start();
     void stop();
-    void drain_until(uint64_t total_expected);
+    void drain_until(uint64_t total_expected) const;
     std::vector<Event> collect();
 
     const std::string& name() const { return name_; }
@@ -31,9 +31,10 @@ protected:
     virtual int on_sample(void *data, size_t len) = 0;
 
     void set_ring_buffers(struct ring_buffer* rb1, struct ring_buffer* rb2);
-    int set_cfg_enabled_map(int fd);
-    int freeze_cfg_enabled_map(int fd);
-    uint64_t snapshot_evcount_percpu(int fd);
+
+    static int set_cfg_enabled_map(int fd);
+    static int freeze_cfg_enabled_map(int fd);
+    uint64_t snapshot_evcount_percpu(int fd) const;
     std::string name_;
     int timeout_ms_;
     std::atomic<bool> running_{false};

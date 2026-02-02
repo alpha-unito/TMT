@@ -16,7 +16,7 @@ class SyscallLogger {
 public:
     explicit SyscallLogger(int timeout_ms = 100);
 
-    bool install_all();
+    bool install_all() const;
     void coordinated_stop();
 
     void run_command(const std::string& cmd, bool print_raw = false);

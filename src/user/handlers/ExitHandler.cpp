@@ -41,7 +41,7 @@ std::string ExitHandler::resolve_bpf_obj_path() const {
 }
 
 static int sample_cb(void *ctx, void *data, size_t len) {
-    auto *c = reinterpret_cast<ExitHandler::RbCtx*>(ctx);
+    const auto *c = static_cast<ExitHandler::RbCtx*>(ctx);
     return c->self->on_sample_with_tag(c->tag, data, len);
 }
 
@@ -58,8 +58,7 @@ bool ExitHandler::install() {
         return false;
     }
 
-    int err = bpf_object__load(obj_);
-    if (err) {
+    if (const int err = bpf_object__load(obj_)) {
         fprintf(stderr, "[exit] load failed: %s\n", strerror(-err));
         return false;
     }
@@ -88,7 +87,7 @@ bool ExitHandler::install() {
     set_cfg_enabled_map(map_cfg_);
 
     rb_exit_ctx_ = { this, "exit" };
-    rb1_ = ring_buffer__new(map_rb_exit_, sample_cb, &rb_exit_ctx_, NULL);
+    rb1_ = ring_buffer__new(map_rb_exit_, sample_cb, &rb_exit_ctx_, nullptr);
     if (!rb1_) {
         fprintf(stderr, "[exit] ring_buffer__new failed\n");
         return false;
@@ -115,10 +114,10 @@ int ExitHandler::on_sample(void *data, size_t len) {
     return on_sample_with_tag("exit", data, len);
 }
 
-int ExitHandler::on_sample_with_tag(const char* tag, void *data, size_t len) {
+int ExitHandler::on_sample_with_tag(const char* tag, const void *data, const size_t len) {
     if (len < sizeof(data_t)) return 0;
     read_events_.fetch_add(1, std::memory_order_relaxed);
-    auto* ev = (const data_t*)data;
+    auto* ev = static_cast<const data_t *>(data);
 
     Event e;
     e.event = tag ? std::string(tag) : std::string("exit");
