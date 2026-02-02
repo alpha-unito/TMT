@@ -7,8 +7,8 @@
 #include <sys/stat.h>
 #include <fstream>
 #include <sstream>
-#include <semaphore>
 #include <sys/mman.h>
+#include <semaphore.h>
 
 SyscallLogger::SyscallLogger(const int timeout_ms)
     : timeout_ms_(timeout_ms) {

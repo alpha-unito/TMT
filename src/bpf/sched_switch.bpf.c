@@ -57,18 +57,6 @@ struct run_event_t {
     u64 timestamp;
 };
 
-static __always_inline bool should_emit_pid(u32 pid)
-{
-    /* if filter is off => emit all */
-    u32 k = 0;
-    u32 *flag = bpf_map_lookup_elem(&cfg_useFilter, &k);
-    if (!flag || *flag == 0)
-        return true;
-
-    /* emit only if PID is allow-listed */
-    u8 *ok = bpf_map_lookup_elem(&allow_pids, &pid);
-    return ok && *ok == 1;
-}
 
 SEC("tracepoint/sched/sched_switch")
 int trace_sched_switch(struct trace_event_raw_sched_switch *ctx)
@@ -81,30 +69,28 @@ int trace_sched_switch(struct trace_event_raw_sched_switch *ctx)
     u32 prev = ctx->prev_pid;
     u32 next = ctx->next_pid;
 
-    /* emit switch-out for prev */
-    if (should_emit_pid(prev)) {
-        struct run_event_t e = {};
-        e.ts = ts; e.cpu = cpu; e.pid = prev;
-        e.type = 2;                                  // switch-out
-        e.reason = ctx->prev_state == 0 ? 0 : 1;     // 0 runnable, 1 blocked
-        bpf_probe_read_kernel_str(e.comm, sizeof(e.comm), ctx->prev_comm);
-        e.tid = prev; e.tgid = prev; e.timestamp = e.ts;
-        __builtin_memcpy(e.command, e.comm, sizeof(e.comm));
-        if (bpf_ringbuf_output(&sched_output, &e, sizeof(e), 0) == 0)
-            inc_ev_count(&ev_count);
-    }
 
-    /* emit switch-in for next */
-    if (should_emit_pid(next)) {
-        struct run_event_t e = {};
-        e.ts = ts; e.cpu = cpu; e.pid = next;
-        e.type = 1; e.reason = 0;                    // switch-in
-        bpf_probe_read_kernel_str(e.comm, sizeof(e.comm), ctx->next_comm);
-        e.tid = next; e.tgid = next; e.timestamp = e.ts;
-        __builtin_memcpy(e.command, e.comm, sizeof(e.comm));
-        if (bpf_ringbuf_output(&sched_output, &e, sizeof(e), 0) == 0)
-            inc_ev_count(&ev_count);
-    }
+    struct run_event_t e_pre = {};
+    e_pre.ts = ts; e_pre.cpu = cpu; e_pre.pid = prev;
+    e_pre.type = 2;                                  // switch-out
+    e_pre.reason = ctx->prev_state == 0 ? 0 : 1;     // 0 runnable, 1 blocked
+    bpf_probe_read_kernel_str(e_pre.comm, sizeof(e_pre.comm), ctx->prev_comm);
+    e_pre.tid = prev; e_pre.tgid = prev; e_pre.timestamp = e_pre.ts;
+    __builtin_memcpy(e_pre.command, e_pre.comm, sizeof(e_pre.comm));
+    if (bpf_ringbuf_output(&sched_output, &e_pre, sizeof(e_pre), 0) == 0)
+        inc_ev_count(&ev_count);
+
+
+
+    struct run_event_t e_post = {};
+    e_post.ts = ts; e_post.cpu = cpu; e_post.pid = next;
+    e_post.type = 1; e_post.reason = 0;                    // switch-in
+    bpf_probe_read_kernel_str(e_post.comm, sizeof(e_post.comm), ctx->next_comm);
+    e_post.tid = next; e_post.tgid = next; e_post.timestamp = e_post.ts;
+    __builtin_memcpy(e_post.command, e_post.comm, sizeof(e_post.comm));
+    if (bpf_ringbuf_output(&sched_output, &e_post, sizeof(e_post), 0) == 0)
+        inc_ev_count(&ev_count);
+
     return 0;
 }
 

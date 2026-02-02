@@ -3,7 +3,6 @@
 #include <fstream>
 #include <map>
 #include <algorithm>
-#include <cmath>
 
 //convert unit string to ns scale factor
 static double unit_scale(const std::string& u) {
