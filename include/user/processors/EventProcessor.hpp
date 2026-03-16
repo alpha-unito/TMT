@@ -1,10 +1,10 @@
 #pragma once
-#include "common.hpp"
-#include <vector>
-#include <string>
+#include "../common.hpp"
 #include <memory>
+#include <string>
+#include <vector>
 
-#define TMT_DEBUG_INTERVALS 0 
+#define TMT_DEBUG_INTERVALS 0
 
 struct Node;
 
@@ -14,19 +14,19 @@ struct TimeInterval {
 };
 
 class EventProcessor {
-public:
-    explicit EventProcessor(const std::vector<Event>& evs, uint32_t root_pid = 0);
+
+    std::vector<Event> _events;
+    std::vector<TimeInterval> _time_intervals;
+    std::unique_ptr<Node> _root;
+    uint32_t _root_pid_hint = 0;
+
+    static void printTreeRec(const Node &n, int depth);
+
+  public:
+    explicit EventProcessor(const std::vector<Event> &evs, uint32_t root_pid = 0);
     ~EventProcessor();
 
-    void build_tree(bool print_tree = false);
-    void compute_intervals(bool print_intervals = false);
-    void store_to_csv(const std::string& filename = "out/alive_series.csv") const;
-
-private:
-    void print_tree_rec(const Node& n, int depth) const;
-
-    std::vector<Event> events_;
-    std::unique_ptr<Node> root_;
-    std::vector<TimeInterval> time_intervals_;
-    uint32_t root_pid_hint_ = 0;
+    void buildTree(bool print_tree = false);
+    void computeIntervals(bool print_intervals = false);
+    void storeToCsv(const std::string &filename = "out/alive_series.csv") const;
 };

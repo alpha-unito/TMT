@@ -1,32 +1,23 @@
 #pragma once
-#include <vector>
+#include "common.hpp"
+#include "handlers/Base.hpp"
 #include <memory>
 #include <string>
-#include "common.hpp"
-#include "BaseHandler.hpp"
-#include "ExecveHandler.hpp"
-#include "ForkHandler.hpp"
-#include "ExitHandler.hpp"
-#include "CloneHandler.hpp"
-#include "Clone3Handler.hpp"
-#include "ExitGroupHandler.hpp"
-#include "SwitchHandler.hpp"
+#include <vector>
 
 class SyscallLogger {
-public:
+    std::vector<std::unique_ptr<BaseHandler>> _handlers;
+    std::vector<Event> _events;
+    int _timeout_ms;
+    uint32_t _root_pid;
+
+  public:
     explicit SyscallLogger(int timeout_ms = 100);
 
-    bool install_all();
-    void coordinated_stop();
+    [[nodiscard]] const std::vector<Event> &getEvents() const;
+    [[nodiscard]] uint32_t getRootPid() const;
+    [[nodiscard]] bool installAll() const;
 
-    void run_command(const std::string& cmd, bool print_raw = false);
-
-    const std::vector<Event>& events() const { return events_; }
-    uint32_t root_pid() const { return root_pid_; }
-
-private:
-    std::vector<std::unique_ptr<BaseHandler>> handlers_;
-    std::vector<Event> events_;
-    int timeout_ms_{100};
-    uint32_t root_pid_ = 0;
+    void stop();
+    void runCommand(const std::string &cmd, bool print_raw = false);
 };

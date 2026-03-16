@@ -10,9 +10,11 @@
 
 # TMT: Thread Monitoring Tool
 
-**TMT** is a lightweight **C++ tool** that leverages **eBPF** to trace and analyze how many threads a target application creates and uses during its execution.
+**TMT** is a lightweight **C++ tool** that leverages **eBPF** to trace and analyze how many threads a target application
+creates and uses during its execution.
 
-It captures scheduling and process events directly from the kernel and exports structured data for post-processing and visualization.
+It captures scheduling and process events directly from the kernel and exports structured data for post-processing and
+visualization.
 
 ---
 
@@ -20,7 +22,7 @@ It captures scheduling and process events directly from the kernel and exports s
 
 Make sure you have:
 
-- Linux kernel with eBPF support  
+- Linux kernel with eBPF support
 - `clang`
 - `libbpf` development files
 - `cmake`
@@ -74,8 +76,8 @@ sudo build/bin/tmt_logger --cmd "python3 example/thread_test.py" --print-raw
 
 By default, TMT will generate several files under the `out/` directory in the project root:
 
-- `out/alive_series.csv` — timeline of active threads per process  
-- `out/oncpu_slices.csv` — CPU scheduling slices  
+- `out/alive_series.csv` — timeline of active threads per process
+- `out/oncpu_slices.csv` — CPU scheduling slices
 
 On the terminal, you will also see a **"Top runtime per CPU"** summary.
 
@@ -99,7 +101,8 @@ cmake --build build
 
 ### Generating plots
 
-After you have run `tmt_logger` at least once (so that `out/alive_series.csv` and `out/oncpu_slices.csv` exist), you can generate the plots via CMake custom targets.
+After you have run `tmt_logger` at least once (so that `out/alive_series.csv` and `out/oncpu_slices.csv` exist), you can
+generate the plots via CMake custom targets.
 
 From the build directory:
 
@@ -110,8 +113,8 @@ cmake --build build --target plot_threads_over_time
 This will run gnuplot with the script under `plots/threads_over_time.gp` and produce:
 
 - `out/threads_over_time.png` — visual summary of:
-  - thread activity over time (alive threads)
-  - CPU scheduling slices aggregated over the timeline
+    - thread activity over time (alive threads)
+    - CPU scheduling slices aggregated over the timeline
 
 To generate **all** available plots:
 
@@ -119,7 +122,8 @@ To generate **all** available plots:
 cmake --build build --target plots_all
 ```
 
-If `gnuplot` is not installed, the `plots_all` target will simply print a message reminding you to install it and reconfigure.
+If `gnuplot` is not installed, the `plots_all` target will simply print a message reminding you to install it and
+reconfigure.
 
 ---
 
