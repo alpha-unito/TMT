@@ -1,0 +1,14 @@
+set(OUT_DIR "${CMAKE_SOURCE_DIR}/out")
+set(PLOTS_DIR "${CMAKE_CURRENT_SOURCE_DIR}")
+set(PLOT_SCRIPT "${PLOTS_DIR}/generate_plots.sh")
+
+file(CHMOD "${PLOT_SCRIPT}" PERMISSIONS OWNER_READ OWNER_WRITE OWNER_EXECUTE GROUP_READ GROUP_EXECUTE WORLD_READ WORLD_EXECUTE)
+file(MAKE_DIRECTORY ${OUT_DIR})
+
+add_custom_target(plots_all
+        COMMAND ${PLOT_SCRIPT} ${GNUPLOT_EXECUTABLE} ${PLOTS_DIR} ${OUT_DIR}
+        DEPENDS tmt_logger ${PLOT_SCRIPT}
+        WORKING_DIRECTORY ${CMAKE_BINARY_DIR}
+        COMMENT "Generating all visualizations via bash script"
+        VERBATIM
+)

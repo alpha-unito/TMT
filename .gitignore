@@ -211,8 +211,11 @@ __marimo__/
 # Vs Code
 .vscode/
 
+#intellij
+.idea/
+
 # VmLinux
 vmlinux.h
 
-# Old Folder
-old/
+#output folder
+out/**
